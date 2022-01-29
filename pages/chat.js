@@ -2,6 +2,8 @@ import { Box, Text, TextField, Image, Button } from "@skynexui/components"
 import React from "react"
 import appConfig from "../config.json"
 import { createClient } from "@supabase/supabase-js"
+import { useRouter } from "next/router"
+import { ButtonSendSticker } from "../src/components/ButtonSendSticker"
 
 const SUPABA_ANON_KEY =
 	"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTY0MzMyOTAzNCwiZXhwIjoxOTU4OTA1MDM0fQ.wcoibuwpu2UV5INmgHGgyhDUoQN1chA_Raw7BJ9eY5k"
@@ -9,10 +11,23 @@ const SUPABA_ANON_KEY =
 const SUPABASE_URL = "https://vfbfazdbrwbzfqxregul.supabase.co"
 const supabaseClient = createClient(SUPABASE_URL, SUPABA_ANON_KEY)
 
+function escutaMensagemDoServidor(adicionaMensagem) {
+	return supabaseClient
+		.from("mensagens")
+		.on("INSERT", (respostaLive) => {
+			adicionaMensagem(respostaLive.new)
+		})
+		.subscribe()
+}
+
 export default function ChatPage() {
-	// Sua lógica vai aqui
 	const [mensagem, setMensagem] = React.useState("")
 	const [listaMensagens, setListaMensagens] = React.useState([])
+
+	const roteamento = useRouter()
+	const usuarioLogado = roteamento.query.username
+
+	// Atualiza os dados quando quando recebe uma nova mensagem
 
 	React.useEffect(() => {
 		supabaseClient
@@ -22,25 +37,30 @@ export default function ChatPage() {
 			.then(({ data }) => {
 				setListaMensagens(data)
 			})
+
+		escutaMensagemDoServidor((novaMensagem) => {
+			//handleNovaMensagem(novaMensagem)
+			setListaMensagens((valorAtualDaLista) => {
+				return [novaMensagem, ...valorAtualDaLista]
+			})
+		})
 	}, [])
 
 	function handleNovaMensagem(novaMensagem) {
 		const mensagem = {
 			//id: listaMensagens.length + 1,
 			texto: novaMensagem,
-			de: "renatogsmello",
+			de: usuarioLogado,
 		}
+		// Salva a mensagem no banco
 		supabaseClient
 			.from("mensagens")
 			.insert([mensagem])
-			.then(({ data }) => {
-				console.log(data)
-				setListaMensagens([data[0], ...listaMensagens])
-			})
-		// setListaMensagens([mensagem, ...listaMensagens])
+			.then(({ data }) => {})
+		// Limpa o campo de mensagem
 		setMensagem("")
 	}
-	// ./Sua lógica vai aqui
+
 	return (
 		<Box
 			styleSheet={{
@@ -93,10 +113,12 @@ export default function ChatPage() {
 					>
 						<TextField
 							value={mensagem}
+							// Guarda o valor da mensagem
 							onChange={(event) => {
 								const valor = event.target.value
 								setMensagem(valor)
 							}}
+							// Quando a tecla enter for pressionada a mensagem é enviada pra função handleNovaMensagem
 							onKeyPress={(event) => {
 								if (event.key === "Enter") {
 									event.preventDefault()
@@ -114,6 +136,12 @@ export default function ChatPage() {
 								backgroundColor: appConfig.theme.colors.neutrals[800],
 								marginRight: "12px",
 								color: appConfig.theme.colors.neutrals[200],
+							}}
+						/>
+						<ButtonSendSticker
+							onStickerClick={(sticker) => {
+								console.log("[usando o componente]salve esse sticker por favor", sticker)
+								handleNovaMensagem(`:sticker: ${sticker}`)
 							}}
 						/>
 					</Box>
@@ -188,7 +216,13 @@ function MessageList(props) {
 								{new Date().toLocaleDateString()}
 							</Text>
 						</Box>
-						{mensagemConteudo.texto}
+
+						{mensagemConteudo.texto.startsWith(":sticker:") ? (
+							<Image src={mensagemConteudo.texto.replace(":sticker:", "")} />
+						) : (
+							mensagemConteudo.texto
+						)}
+						{/* {mensagemConteudo.texto} */}
 					</Text>
 				)
 			})}
